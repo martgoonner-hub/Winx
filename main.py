@@ -138,19 +138,10 @@ def create_tray_icon(stop_event: threading.Event):
             draw.ellipse([8, 8, 56, 56], fill=(0, 120, 215, 255))
             return img
 
-        def on_quit(icon, item):
-            set_system_proxy(False)
-            stop_event.set()
-            icon.stop()
-
         icon = pystray.Icon(
             "WinxBrowser",
             create_icon_image(),
-            "Winx Browser",
-            menu=pystray.Menu(
-                pystray.MenuItem("Winx Browser", lambda: None, enabled=False),
-                pystray.MenuItem("Quit", on_quit)
-            )
+            "Winx Browser"
         )
         icon.run()
     except Exception as e:
