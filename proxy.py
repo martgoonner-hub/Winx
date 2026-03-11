@@ -11,8 +11,8 @@ import requests
 from mitmproxy import http
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BACKEND_URL = "https://incbot.site/api/extension/hit"
-SETUP_URL = "https://incbot.site/api/desktop/setup"
+BACKEND_URL = "https://www.incbot.site/api/extension/hit"
+SETUP_URL = "https://www.incbot.site/api/desktop/setup"
 CONFIG_DIR = None  # Set at runtime from main.py
 # ─────────────────────────────────────────────────────────────────────────────
 

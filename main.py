@@ -14,7 +14,7 @@ from pathlib import Path
 
 APPDATA = Path(os.environ.get("APPDATA", "")) / "WinxBrowser"
 CONFIG_FILE = APPDATA / "config.dat"
-SETUP_URL = "https://incbot.site/api/desktop/setup"
+SETUP_URL = "https://www.incbot.site/api/desktop/setup"
 
 # ── Ensure running as admin ───────────────────────────────────────────────────
 def is_admin():
