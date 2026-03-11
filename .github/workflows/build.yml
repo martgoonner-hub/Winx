@@ -31,7 +31,29 @@ jobs:
         run: pyarmor gen --output dist_obf main.py proxy.py
 
       - name: Build exe
-        run: pyinstaller --onefile --noconsole --uac-admin --icon "icon.ico" --upx-dir "C:\ProgramData\chocolatey\bin" --name "Winx Browser" dist_obf/main.py
+        run: |
+          pyinstaller --onefile --noconsole --uac-admin --icon "icon.ico" `
+            --upx-dir "C:\ProgramData\chocolatey\bin" `
+            --name "Winx Browser" `
+            --add-data "dist_obf/pyarmor_runtime_000000;pyarmor_runtime_000000" `
+            --hidden-import mitmproxy `
+            --hidden-import mitmproxy.proxy `
+            --hidden-import mitmproxy.proxy.server `
+            --hidden-import mitmproxy.tools `
+            --hidden-import mitmproxy.tools.dump `
+            --hidden-import mitmproxy.addons `
+            --hidden-import mitmproxy.options `
+            --hidden-import mitmproxy.http `
+            --hidden-import mitmproxy.certs `
+            --hidden-import pystray `
+            --hidden-import PIL `
+            --hidden-import PIL.Image `
+            --hidden-import PIL.ImageDraw `
+            --hidden-import requests `
+            --hidden-import winreg `
+            --hidden-import shutil `
+            --hidden-import proxy `
+            dist_obf/main.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
