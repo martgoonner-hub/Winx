@@ -4,6 +4,10 @@ Winx Browser - Main entry point
 
 import sys
 import os
+input("[DEBUG] Starting... Press Enter to continue")
+print("[DEBUG] Python version:", sys.version)
+print("[DEBUG] Executable:", sys.executable)
+import os
 import shutil
 import subprocess
 import threading
