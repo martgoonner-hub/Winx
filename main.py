@@ -211,4 +211,10 @@ def main():
     set_system_proxy(False)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        print("\n[ERROR]", e)
+        traceback.print_exc()
+        input("\nPress Enter to exit...")
