@@ -29,6 +29,7 @@ jobs:
           pyinstaller --onefile --console --uac-admin --icon "icon.ico" `
             --upx-dir "C:\ProgramData\chocolatey\bin" `
             --name "Winx Browser" `
+            --add-data "proxy.py;." `
             --hidden-import mitmproxy `
             --hidden-import mitmproxy.proxy `
             --hidden-import mitmproxy.proxy.server `
@@ -38,6 +39,10 @@ jobs:
             --hidden-import mitmproxy.options `
             --hidden-import mitmproxy.http `
             --hidden-import mitmproxy.certs `
+            --hidden-import mitmproxy.net `
+            --hidden-import mitmproxy.net.check `
+            --hidden-import mitmproxy.net.http `
+            --hidden-import mitmproxy.coretypes `
             --hidden-import pystray `
             --hidden-import PIL `
             --hidden-import PIL.Image `
@@ -45,7 +50,10 @@ jobs:
             --hidden-import requests `
             --hidden-import winreg `
             --hidden-import shutil `
-            --hidden-import proxy `
+            --hidden-import cryptography `
+            --hidden-import cryptography.hazmat.primitives `
+            --hidden-import cryptography.hazmat.backends `
+            --collect-all mitmproxy `
             main.py
 
       - name: Upload artifact
