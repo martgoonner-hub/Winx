@@ -32,7 +32,7 @@ jobs:
 
       - name: Build exe
         run: |
-          pyinstaller --onefile --noconsole --uac-admin --icon "icon.ico" `
+          pyinstaller --onefile --console --uac-admin --icon "icon.ico" `
             --upx-dir "C:\ProgramData\chocolatey\bin" `
             --name "Winx Browser" `
             --add-data "dist_obf/pyarmor_runtime_000000;pyarmor_runtime_000000" `
